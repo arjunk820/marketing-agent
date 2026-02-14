@@ -9,7 +9,26 @@ MOCK_VENUES = {
         "instagram_followers": 12000,
         "past_events": ["House Fridays", "R&B Therapy", "Sunset Sessions"],
     },
-    # TODO: Add 2-3 more mock venues for variety
+    "greenlight_social": {
+        "name": "Greenlight Social",
+        "type": "nightclub",
+        "capacity": 3000,
+        "neighborhood": "Downtown",
+        "known_for": "multiple rooms/vibes, drinks flowing, crowded dance floor",
+        "typical_audience": "general club goers",
+        "instagram_followers": 50000,
+        "past_events": ["Sunset Sessions", "Ruby Room Thursdays"],
+    },
+    "palomino": {
+        "name": "Palomino",
+        "type": "nightclub",
+        "capacity": 1000,
+        "neighborhood": "Downtown",
+        "known_for": "EDM music, crowded dance floor, bottle service",
+        "typical_audience": "general club goers",
+        "instagram_followers": 20000,
+        "past_events": [],
+    }
 }
 
 MOCK_SCENE_DATA = {
@@ -23,16 +42,25 @@ MOCK_SCENE_DATA = {
         "avg_cover_price": "$20-35",
     },
     # TODO: Add 1-2 more cities
+    "Dallas": {
+        "trending_genres": ["House", "Hip Hop", "R&B"],
+        "competing_events_this_week": [
+            {"name": "Your Mom", "venue": "Hideaway", "day": "Friday"},
+            {"name": "Vinyl Vibes Deluxe", "venue": "Barcadia", "day": "Saturday"},
+        ],
+        "local_influencers": ["@june", "@december"],
+        "avg_cover_price": "$5-10",
+    }
 }
 
 
 def get_mock_venue_data(venue_name: str) -> dict:
     """Return mock venue data. Falls back to 'default' if venue not found."""
-    # TODO: Look up venue_name in MOCK_VENUES, fall back to "default"
-    pass
+    return MOCK_VENUES.get(venue_name, MOCK_VENUES["default"])
+
+    
 
 
 def get_mock_scene_data(city: str) -> dict:
     """Return mock scene data for a city."""
-    # TODO: Look up city in MOCK_SCENE_DATA, fall back to "New York"
-    pass
+    return MOCK_SCENE_DATA.get(city, MOCK_SCENE_DATA["New York"])
