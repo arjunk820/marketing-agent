@@ -16,7 +16,7 @@ def research_node(state: AgentState) -> dict:
 
 
 def audience_node(state: AgentState) -> dict:
-    """Profile the target audience based on genre + venue + scene data."""
+    """Profile the target audience based on genre + venue + scene data, using an LLM."""
     response = llm.invoke([
         SystemMessage(content="You are a nightlife marketing strategist. Return ONLY valid JSON, no markdown."),
         HumanMessage(content=f"""Based on this event and research, create an audience profile.
