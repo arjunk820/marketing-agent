@@ -5,14 +5,6 @@ from .nodes import research_node, audience_node, content_node, review_node, expo
 
 
 def should_regenerate(state: AgentState) -> str:
-    """
-    Conditional edge after review_node.
-
-    TODO:
-    - If human_feedback == "approve" -> route to "export"
-    - If human_feedback contains edit instructions -> route to "content"
-    """
-
     if state["human_feedback"] == "approve":
         return "export"
     else:
@@ -20,21 +12,6 @@ def should_regenerate(state: AgentState) -> str:
 
 
 def build_graph():
-    """
-    TODO:
-    1. Create StateGraph with AgentState
-    2. Add nodes: research, audience, content, review, export
-    3. Add edges:
-       - START -> research
-       - research -> audience
-       - audience -> content
-       - content -> review
-       - review -> conditional edge (should_regenerate)
-       - export -> END
-    4. Set interrupt_before=["review"] for human-in-the-loop
-    5. Compile with MemorySaver checkpointer
-    6. Return compiled graph
-    """
 
     graph = StateGraph(AgentState)
 

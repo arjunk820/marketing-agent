@@ -1,4 +1,7 @@
+import json
+from datetime import datetime, timezone
 from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import SystemMessage, HumanMessage
 from .state import AgentState
 from .mock_data import get_mock_venue_data, get_mock_scene_data
 
@@ -6,78 +9,68 @@ llm = ChatAnthropic(model="claude-sonnet-4-20250514")
 
 
 def research_node(state: AgentState) -> dict:
-    """
-    Analyze venue and local scene.
-
-    TODO:
-    1. Pull mock data based on state["event_brief"]["venue_name"] and city
-    2. Return {"research": {...venue_info, scene_context, competing_events}}
-
-    In production, this would call Tavily/SerpAPI tools.
-    For now, use mock_data.py to return realistic venue data.
-    """
-    pass
+    """Analyze venue and local scene using mock data."""
+    venue_data = get_mock_venue_data(state["event_brief"]["venue_name"])
+    scene_data = get_mock_scene_data(state["event_brief"]["city"])
+    return {"research": {"venue": venue_data, "scene": scene_data}, "current_node": "research"}
 
 
 def audience_node(state: AgentState) -> dict:
-    """
-    Profile the target audience based on genre + venue + scene data.
+    """Profile the target audience based on genre + venue + scene data."""
+    response = llm.invoke([
+        SystemMessage(content="You are a nightlife marketing strategist. Return ONLY valid JSON, no markdown."),
+        HumanMessage(content=f"""Based on this event and research, create an audience profile.
+        Event: {json.dumps(state["event_brief"])}
+        Research: {json.dumps(state["research"])}
 
-    TODO:
-    1. Build a prompt using state["event_brief"] + state["research"]
-    2. Ask the LLM to output a structured audience profile:
-       - age_range, interests, platforms, content_preferences, price_sensitivity
-    3. Parse the response (use structured output or JSON mode)
-    4. Return {"audience_profile": {...}}
+        Return JSON with these fields:
+        - age_range (e.g. "21-30")
+        - interests (list of strings)
+        - platforms (list of social platforms people use the most)
+        - content_preferences (what content formats they engage with)
+        - price_sensitivity (low/medium/high)"""),
+    ])
 
-    Tip: Use a system prompt that positions the LLM as a nightlife marketing strategist.
-    """
-    pass
+    audience_profile = json.loads(response.content)
+    return {"audience_profile": audience_profile, "current_node": "audience"}
 
 
 def content_node(state: AgentState) -> dict:
-    """
-    Generate marketing content for all channels.
+    """Generate marketing content for all channels."""
+    feedback_context = ""
+    if state.get("human_feedback") and state["human_feedback"] != "approve":
+        feedback_context = f"\n\nThe previous content was rejected. Apply this feedback: {state['human_feedback']}"
 
-    TODO:
-    1. Build a prompt using event_brief + research + audience_profile
-    2. Generate:
-       - instagram_caption (with emojis, hashtags, CTA)
-       - event_description (2-3 paragraphs for listing sites)
-       - email_blast (subject line + body for mailing list)
-       - sms_teaser (under 160 chars)
-    3. Return {"content": {instagram_caption, event_description, email_blast, sms_teaser}}
+    response = llm.invoke([
+        SystemMessage(content="You are a nightlife marketing copywriter. Return ONLY valid JSON, no markdown."),
+        HumanMessage(content=f"""Generate marketing content for this event.
+        Event: {json.dumps(state["event_brief"])}
+        Venue & Scene Research: {json.dumps(state["research"])}
+        Target Audience: {json.dumps(state["audience_profile"])}{feedback_context}
 
-    Tip: You can make separate LLM calls per content type, or one big structured call.
-    Separate calls = more control, one call = faster.
-    """
-    pass
+        Return JSON with:
+        - instagram_caption (with emojis, hashtags, CTA)
+        - event_description (2-3 paragraphs for listing sites)
+        - email_blast (object with "subject" and "body" fields)
+        - sms_teaser (under 160 characters)"""),
+    ])
+
+    content = json.loads(response.content)
+    return {"content": content, "current_node": "content"}
 
 
 def review_node(state: AgentState) -> dict:
-    """
-    Human-in-the-loop checkpoint.
-
-    This node is interrupted BEFORE execution via LangGraph's interrupt_before.
-    The frontend shows the generated content, user provides feedback.
-    When resumed, state["human_feedback"] will be populated.
-
-    TODO:
-    1. Check state["human_feedback"]
-    2. If "approve" -> return state as-is (graph continues to export)
-    3. If feedback contains edit instructions -> route back to content_node
-       (you'll handle this via conditional edges in graph.py)
-    """
-    pass
+    """Human-in-the-loop checkpoint."""
+    return {"current_node": "review"}
 
 
 def export_node(state: AgentState) -> dict:
-    """
-    Package everything into a final campaign brief.
-
-    TODO:
-    1. Combine event_brief + audience_profile + approved content
-    2. Structure as a clean campaign object with metadata (generated_at, version, etc.)
-    3. Return {"final_campaign": {...}}
-    """
-    pass
+    """Package everything into a final campaign brief."""
+    final_campaign = {
+        "event_brief": state["event_brief"],
+        "audience_profile": state["audience_profile"],
+        "content": state["content"],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+    }
+    return {"final_campaign": final_campaign, "current_node": "export"}
