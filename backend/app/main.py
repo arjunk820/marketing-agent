@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from .models import EventBriefInput, ReviewInput
@@ -37,7 +37,13 @@ async def create_campaign(brief: EventBriefInput):
           config={"configurable": {"thread_id": thread_id}}
       )
     """
-    pass
+
+    campaign_id = str(uuid.uuid4())
+    thread_id = str(uuid.uuid4())
+    result = graph.invoke({"event_brief": brief.model_dump()}, 
+                  config={"configurable": {"thread_id": thread_id}})
+    campaign_store[campaign_id] = {"thread_id": thread_id, "status": "awaiting_review", "state": result}
+    return {"campaign_id": campaign_id, "status": "awaiting_review"}
 
 
 @app.get("/campaigns/{campaign_id}/stream")
@@ -75,7 +81,6 @@ async def submit_review(campaign_id: str, review: ReviewInput):
 
 @app.get("/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: str):
-    """
-    TODO: Return the current campaign state from the store.
-    """
-    pass
+  if campaign_id not in campaign_store: # Raise exception if not found
+      raise HTTPException(status_code=404, detail="Campaign not found")
+  return campaign_store[campaign_id]
