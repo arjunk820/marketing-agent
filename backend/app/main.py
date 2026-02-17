@@ -22,25 +22,10 @@ graph = build_graph()
 
 @app.post("/campaigns")
 async def create_campaign(brief: EventBriefInput):
-    """
-    TODO:
-    1. Generate a campaign_id (uuid)
-    2. Create a thread_id for LangGraph (this is how it tracks state)
-    3. Invoke the graph with the event brief as initial state
-       - The graph will run until it hits the interrupt at review_node
-    4. Store the campaign state in campaign_store
-    5. Return {campaign_id, status: "awaiting_review"}
-
-    Key LangGraph concept:
-      result = graph.invoke(
-          initial_state,
-          config={"configurable": {"thread_id": thread_id}}
-      )
-    """
-
     campaign_id = str(uuid.uuid4())
     thread_id = str(uuid.uuid4())
-    result = graph.invoke({"event_brief": brief.model_dump()}, 
+    result = await asyncio.to_thread(
+                  graph.invoke, {"event_brief": brief.model_dump()}, 
                   config={"configurable": {"thread_id": thread_id}})
     campaign_store[campaign_id] = {"thread_id": thread_id, "status": "awaiting_review", "state": result}
     return {"campaign_id": campaign_id, "status": "awaiting_review"}
@@ -48,21 +33,22 @@ async def create_campaign(brief: EventBriefInput):
 
 @app.get("/campaigns/{campaign_id}/stream")
 async def stream_campaign(campaign_id: str):
-    """
-    TODO:
-    1. Use graph.stream() instead of invoke() for real-time updates
-    2. Yield SSE events as each node completes:
-       data: {"node": "research", "status": "complete", "preview": "..."}
-    3. Frontend connects via EventSource
+    if campaign_id not in campaign_store:
+        raise HTTPException(status_code=404, detail="Campaign not found")
 
-    SSE format:
-      yield f"data: {json.dumps(event)}\\n\\n"
+    thread_id = campaign_store[campaign_id]["thread_id"]
+    config = {"configurable": {"thread_id": thread_id}}
 
-    Key LangGraph concept:
-      for event in graph.stream(state, config):
-          yield format_sse(event)
-    """
-    pass
+    async def event_generator():
+        loop = asyncio.get_event_loop()
+        # Use a queue to yield events as they arrive
+        chunks = await loop.run_in_executor(None, lambda: list(graph.stream(None, config=config)))
+        for chunk in chunks:
+            for node_name, node_output in chunk.items():
+                event = {"node": node_name, "status": "complete", "output": node_output}
+                yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.post("/campaigns/{campaign_id}/review")
@@ -76,11 +62,19 @@ async def submit_review(campaign_id: str, review: ReviewInput):
        (passing None resumes from last checkpoint)
     4. Return the updated campaign state
     """
-    pass
+    if campaign_id not in campaign_store:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    thread_id = campaign_store[campaign_id]["thread_id"]
+    result = await asyncio.to_thread(
+                graph.invoke, {"human_feedback": review.feedback}, 
+                config={"configurable": {"thread_id": thread_id}})
+    status = "exported" if review.feedback == "approve" else "awaiting_review"
+    campaign_store[campaign_id] = {"thread_id": thread_id, "status": status, "state": result}
+    return result
 
 
 @app.get("/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: str):
-  if campaign_id not in campaign_store: # Raise exception if not found
-      raise HTTPException(status_code=404, detail="Campaign not found")
-  return campaign_store[campaign_id]
+    if campaign_id not in campaign_store: # Raise exception if not found
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign_store[campaign_id]
