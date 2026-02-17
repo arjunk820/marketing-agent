@@ -53,15 +53,6 @@ async def stream_campaign(campaign_id: str):
 
 @app.post("/campaigns/{campaign_id}/review")
 async def submit_review(campaign_id: str, review: ReviewInput):
-    """
-    TODO:
-    1. Look up the campaign's thread_id from campaign_store
-    2. Update the graph state with human_feedback
-    3. Resume the graph from the interrupt:
-       graph.invoke(None, config={"configurable": {"thread_id": thread_id}})
-       (passing None resumes from last checkpoint)
-    4. Return the updated campaign state
-    """
     if campaign_id not in campaign_store:
         raise HTTPException(status_code=404, detail="Campaign not found")
     thread_id = campaign_store[campaign_id]["thread_id"]
